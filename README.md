@@ -1,6 +1,6 @@
 # Wrapper API Dashboard
 
-A simple dashboard for managing multiple wrapper APIs (Apple auth wrappers).
+A simple dashboard for managing multiple wrapper APIs (https://github.com/glomatico/wrapper-v2).
 
 Supported actions per wrapper:
 - `GET /me`
