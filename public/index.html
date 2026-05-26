@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Wrapper API Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <section id="loginView" class="panel login-panel">
+        <h1>Wrapper Dashboard</h1>
+        <form id="dashboardLoginForm" class="inline-form">
+          <input id="dashboardPassword" type="password" placeholder="Password" required />
+          <button type="submit">Sign In</button>
+        </form>
+        <p id="loginError" class="error"></p>
+      </section>
+
+      <section id="appView" class="hidden">
+        <header class="toolbar panel">
+          <div>
+            <h1>Wrapper API Dashboard</h1>
+            <p class="muted">Manage authentication and status checks across multiple wrapper APIs.</p>
+          </div>
+          <div class="toolbar-actions">
+            <button id="refreshAllBtn" type="button" class="secondary">Refresh all /health</button>
+            <button id="logoutBtn" type="button" class="danger">Sign Out</button>
+          </div>
+        </header>
+
+        <section class="panel add-panel">
+          <h2>New Wrapper</h2>
+          <form id="addWrapperForm" class="grid-form">
+            <input id="wrapperName" type="text" placeholder="Name (e.g. EU Node 1)" required />
+            <input id="wrapperBaseUrl" type="url" placeholder="http://127.0.0.1:8180" required />
+            <button type="submit">Add</button>
+          </form>
+          <p id="addWrapperError" class="error"></p>
+        </section>
+
+        <section>
+          <div id="wrappersList" class="tiles-grid"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="wrapperCardTemplate">
+      <article class="panel wrapper-card">
+        <div class="wrapper-header">
+          <div>
+            <h3 class="wrapper-name"></h3>
+            <a class="wrapper-url" target="_blank" rel="noreferrer"></a>
+          </div>
+          <span class="status-badge status-idle">idle</span>
+        </div>
+
+        <div class="quick-actions">
+          <button type="button" class="refresh-btn">GET /health</button>
+          <button type="button" class="secondary me-btn">GET /me</button>
+          <button type="button" class="secondary edit-toggle-btn">Edit</button>
+          <button type="button" class="danger remove-btn">Delete</button>
+        </div>
+
+        <form class="edit-form hidden">
+          <input type="text" name="name" placeholder="Name" required />
+          <input type="url" name="baseUrl" placeholder="URL" required />
+          <button type="submit">Save</button>
+          <button type="button" class="secondary edit-cancel-btn">Cancel</button>
+        </form>
+
+        <div class="forms-grid">
+          <form class="auth-form login-form">
+            <input type="text" name="username" placeholder="username / apple_id" required />
+            <input type="password" name="password" placeholder="password" required />
+            <button type="submit">POST /login</button>
+          </form>
+
+          <form class="auth-form twofa-form">
+            <input type="text" name="code" placeholder="2FA code" required />
+            <button type="submit">POST /login/2fa</button>
+          </form>
+
+          <button type="button" class="danger clear-login-btn">DELETE /login</button>
+        </div>
+
+        <details class="raw-response">
+          <summary>Raw Response</summary>
+          <pre class="response-box">No data</pre>
+        </details>
+      </article>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
