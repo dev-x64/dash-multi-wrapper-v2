@@ -43,6 +43,10 @@ function ensureCardState(wrapperId) {
       badgeText: 'idle',
       rawTitle: 'No data',
       rawPayload: null,
+      me: {
+        username: null,
+        runtime: null,
+      },
     });
   }
   return cardState.get(wrapperId);
@@ -94,13 +98,56 @@ function writeRawResponse(state, title, payload) {
   state.rawPayload = payload;
 }
 
+function normalizeRuntimeValue(value) {
+  if (value === true) {
+    return { text: 'true', className: 'is-true' };
+  }
+  if (value === false) {
+    return { text: 'false', className: 'is-false' };
+  }
+  return { text: '-', className: 'is-unknown' };
+}
+
+function applyMeInfo(cardRef, state) {
+  const usernameText = state.me.username ? state.me.username.trim() : '';
+  cardRef.usernameEl.textContent = usernameText || 'Unknown';
+
+  cardRef.runtimePills.forEach((pill) => {
+    const key = pill.dataset.runtimeKey;
+    const value = state.me.runtime ? state.me.runtime[key] : undefined;
+    const normalized = normalizeRuntimeValue(value);
+
+    pill.classList.remove('is-true', 'is-false', 'is-unknown');
+    pill.classList.add(normalized.className);
+    pill.textContent = `${key}: ${normalized.text}`;
+  });
+}
+
+function updateMeInfoFromResult(state, endpoint, result) {
+  if (!endpoint.endsWith('/me')) {
+    return;
+  }
+
+  if (result?.status !== 200 || !result?.body) {
+    return;
+  }
+
+  const username = result.body.auth?.username ?? result.body.auth?.apple_id ?? null;
+  const runtime = result.body.runtime ?? null;
+
+  state.me = {
+    username: typeof username === 'string' ? username : null,
+    runtime: runtime && typeof runtime === 'object' ? runtime : null,
+  };
+}
+
 async function checkAuth() {
   try {
     const { response } = await api('/auth/me');
     setAuthState(response.ok);
     if (response.ok) {
       await loadWrappers();
-      await refreshAllHealth();
+      await refreshAllMe();
     }
   } catch {
     setAuthState(false);
@@ -130,9 +177,11 @@ async function callAndRender(wrapperId, endpoint, options, title, cardRef) {
   const { body } = await api(endpoint, options);
   writeRawResponse(state, title, body);
   updateBadgeByResult(state, body);
+  updateMeInfoFromResult(state, endpoint, body);
 
   if (cardRef) {
     applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
+    applyMeInfo(cardRef, state);
     cardRef.responseEl.textContent = `${state.rawTitle}\n${pretty(state.rawPayload)}`;
   }
 
@@ -154,6 +203,8 @@ function renderWrappers() {
     const urlEl = node.querySelector('.wrapper-url');
     const badgeEl = node.querySelector('.status-badge');
     const responseEl = node.querySelector('.response-box');
+    const usernameEl = node.querySelector('.me-username');
+    const runtimePills = Array.from(node.querySelectorAll('.runtime-pill'));
     const refreshBtn = node.querySelector('.refresh-btn');
     const meBtn = node.querySelector('.me-btn');
     const removeBtn = node.querySelector('.remove-btn');
@@ -164,7 +215,7 @@ function renderWrappers() {
     const editCancelBtn = node.querySelector('.edit-cancel-btn');
     const editFormEl = node.querySelector('.edit-form');
 
-    const cardRef = { badgeEl, responseEl };
+    const cardRef = { badgeEl, responseEl, usernameEl, runtimePills };
     const state = ensureCardState(wrapper.id);
 
     nameEl.textContent = wrapper.name;
@@ -175,6 +226,7 @@ function renderWrappers() {
     editFormEl.elements.baseUrl.value = wrapper.baseUrl;
 
     applyBadge(badgeEl, state.badgeClass, state.badgeText);
+    applyMeInfo(cardRef, state);
     if (state.rawPayload === null) {
       responseEl.textContent = state.rawTitle;
     } else {
@@ -191,6 +243,9 @@ function renderWrappers() {
     meBtn.addEventListener('click', async () => {
       await callAndRender(wrapper.id, `/api/wrappers/${wrapper.id}/me`, { method: 'GET' }, 'GET /me', cardRef);
     });
+    meBtn.runMe = async () => {
+      await callAndRender(wrapper.id, `/api/wrappers/${wrapper.id}/me`, { method: 'GET' }, 'GET /me', cardRef);
+    };
 
     removeBtn.addEventListener('click', async () => {
       const { response, body } = await api(`/api/wrappers/${wrapper.id}`, { method: 'DELETE' });
@@ -304,6 +359,18 @@ async function refreshAllHealth() {
   );
 }
 
+async function refreshAllMe() {
+  const cards = Array.from(document.querySelectorAll('.wrapper-card'));
+  await Promise.all(
+    cards.map(async (card) => {
+      const button = card.querySelector('.me-btn');
+      if (typeof button.runMe === 'function') {
+        await button.runMe();
+      }
+    })
+  );
+}
+
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   loginError.textContent = '';
@@ -322,7 +389,7 @@ loginForm.addEventListener('submit', async (event) => {
   document.getElementById('dashboardPassword').value = '';
   setAuthState(true);
   await loadWrappers();
-  await refreshAllHealth();
+  await refreshAllMe();
 });
 
 logoutBtn.addEventListener('click', async () => {
@@ -354,9 +421,9 @@ addWrapperForm.addEventListener('submit', async (event) => {
   wrappers.push(body.wrapper);
   ensureCardState(body.wrapper.id);
   renderWrappers();
-  const lastCardButton = wrappersList.querySelector('.wrapper-card:last-child .refresh-btn');
-  if (lastCardButton && typeof lastCardButton.runRefresh === 'function') {
-    lastCardButton.runRefresh();
+  const lastCardButton = wrappersList.querySelector('.wrapper-card:last-child .me-btn');
+  if (lastCardButton && typeof lastCardButton.runMe === 'function') {
+    lastCardButton.runMe();
   }
 });
 
