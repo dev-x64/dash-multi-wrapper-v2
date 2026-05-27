@@ -185,7 +185,14 @@ function normalizeRuntimeValue(value) {
 function applyMeInfo(cardRef, state) {
   const usernameText = state.me.username ? state.me.username.trim() : '';
   cardRef.usernameEl.textContent = usernameText || 'Unknown';
-  cardRef.authStateEl.textContent = state.me.authState || 'unknown';
+  const authStateText = state.me.authState || 'unknown';
+  cardRef.authStateEl.textContent = authStateText;
+  cardRef.authStateEl.classList.remove('state-authenticated', 'state-not-authenticated');
+  if (authStateText === 'authenticated') {
+    cardRef.authStateEl.classList.add('state-authenticated');
+  } else if (authStateText !== 'unknown') {
+    cardRef.authStateEl.classList.add('state-not-authenticated');
+  }
   cardRef.versionEl.textContent = state.me.version || '-';
 
   cardRef.runtimePills.forEach((pill) => {

@@ -298,10 +298,28 @@ button.danger:hover {
 }
 
 .me-auth-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #d3deea;
+  background: #eef4fa;
   font-size: 14px;
   font-weight: 700;
-  color: #2a4a69;
+  color: #46607b;
   text-transform: lowercase;
+}
+
+.me-auth-state.state-authenticated {
+  background: #e6f7eb;
+  border-color: #a7ddb9;
+  color: #156f38;
+}
+
+.me-auth-state.state-not-authenticated {
+  background: #fff1f3;
+  border-color: #f0b9be;
+  color: #9f1f2e;
 }
 
 .me-version {
