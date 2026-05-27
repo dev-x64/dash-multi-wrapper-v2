@@ -190,14 +190,15 @@ button.danger:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
   gap: 18px;
+  align-items: start;
 }
 
 .wrapper-card {
   display: grid;
   gap: 14px;
-  height: 100%;
   align-content: start;
   padding: 18px;
+  min-width: 0;
 }
 
 .wrapper-header {
@@ -351,10 +352,15 @@ button.danger:hover {
   color: #d4e7ff;
   border-radius: 12px;
   padding: 14px;
+  width: 100%;
+  min-width: 0;
   max-height: 300px;
   overflow: auto;
   font-size: 12px;
   line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .error {

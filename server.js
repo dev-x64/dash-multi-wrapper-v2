@@ -202,12 +202,45 @@ async function callWrapperJson(wrapper, endpoint, options = {}) {
     });
 
     const contentType = response.headers.get('content-type') || '';
-    let body = null;
+    const rawText = await response.text();
+    const normalizedType = contentType.toLowerCase();
+    const looksLikeJson = normalizedType.includes('application/json');
 
-    if (contentType.includes('application/json')) {
-      body = await response.json();
-    } else {
-      body = await response.text();
+    if (!looksLikeJson) {
+      const isHtml = normalizedType.includes('text/html');
+      const snippet = rawText.trim().slice(0, 500);
+      return {
+        ok: false,
+        status: 502,
+        body: {
+          error: 'non_json_response',
+          message: 'Wrapper returned a non-JSON response',
+          upstreamStatus: response.status,
+          upstreamContentType: contentType || null,
+          snippet: isHtml ? null : snippet || null,
+        },
+        wrapperUrl: url,
+      };
+    }
+
+    let body = null;
+    if (rawText) {
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        return {
+          ok: false,
+          status: 502,
+          body: {
+            error: 'invalid_json_response',
+            message: 'Wrapper returned invalid JSON',
+            upstreamStatus: response.status,
+            upstreamContentType: contentType || null,
+            snippet: rawText.trim().slice(0, 500) || null,
+          },
+          wrapperUrl: url,
+        };
+      }
     }
 
     return {
