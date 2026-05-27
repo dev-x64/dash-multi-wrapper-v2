@@ -43,8 +43,14 @@ function ensureCardState(wrapperId) {
       badgeText: 'idle',
       rawTitle: 'No data',
       rawPayload: null,
+      actionFeedback: {
+        tone: 'idle',
+        text: 'No actions yet.',
+      },
       me: {
         username: null,
+        authState: null,
+        version: null,
         runtime: null,
       },
     });
@@ -98,6 +104,74 @@ function writeRawResponse(state, title, payload) {
   state.rawPayload = payload;
 }
 
+function summarizeAction(title, result) {
+  const status = Number.isFinite(result?.status) ? result.status : 0;
+  const payload = result?.body;
+  const details = [];
+
+  if (payload && typeof payload === 'object') {
+    if (typeof payload.state === 'string') {
+      details.push(`state: ${payload.state}`);
+    }
+    if (typeof payload.was === 'string') {
+      details.push(`was: ${payload.was}`);
+    }
+    if (typeof payload.auth?.state === 'string') {
+      details.push(`auth: ${payload.auth.state}`);
+    }
+    if (typeof payload.error === 'string') {
+      details.push(`error: ${payload.error}`);
+    }
+    if (typeof payload.message === 'string') {
+      details.push(payload.message);
+    }
+  }
+
+  const statusLabel = status ? String(status) : 'n/a';
+  const baseText = `${title} (${statusLabel})`;
+  const suffix = details.length ? ` - ${details.join(' | ')}` : '';
+
+  let tone = 'success';
+  if (status === 202 || result?.body?.status === 202) {
+    tone = 'warn';
+  } else if (status >= 400 || status === 0 || result?.ok === false) {
+    tone = 'error';
+  }
+
+  return {
+    tone,
+    text: `${baseText}${suffix}`,
+  };
+}
+
+function writeActionFeedback(state, title, result) {
+  state.actionFeedback = summarizeAction(title, result);
+}
+
+function applyActionFeedback(cardRef, state) {
+  if (!cardRef.feedbackEl || !cardRef.feedbackTextEl) {
+    return;
+  }
+
+  cardRef.feedbackEl.classList.remove(
+    'action-feedback-idle',
+    'action-feedback-success',
+    'action-feedback-warn',
+    'action-feedback-error'
+  );
+
+  const toneClassMap = {
+    idle: 'action-feedback-idle',
+    success: 'action-feedback-success',
+    warn: 'action-feedback-warn',
+    error: 'action-feedback-error',
+  };
+
+  const toneClass = toneClassMap[state.actionFeedback?.tone] || 'action-feedback-idle';
+  cardRef.feedbackEl.classList.add(toneClass);
+  cardRef.feedbackTextEl.textContent = state.actionFeedback?.text || 'No actions yet.';
+}
+
 function normalizeRuntimeValue(value) {
   if (value === true) {
     return { text: 'true', className: 'is-true' };
@@ -111,6 +185,8 @@ function normalizeRuntimeValue(value) {
 function applyMeInfo(cardRef, state) {
   const usernameText = state.me.username ? state.me.username.trim() : '';
   cardRef.usernameEl.textContent = usernameText || 'Unknown';
+  cardRef.authStateEl.textContent = state.me.authState || 'unknown';
+  cardRef.versionEl.textContent = state.me.version || '-';
 
   cardRef.runtimePills.forEach((pill) => {
     const key = pill.dataset.runtimeKey;
@@ -133,12 +209,44 @@ function updateMeInfoFromResult(state, endpoint, result) {
   }
 
   const username = result.body.auth?.username ?? result.body.auth?.apple_id ?? null;
+  const authState = result.body.auth?.state ?? null;
+  const version = result.body.version ?? null;
   const runtime = result.body.runtime ?? null;
 
   state.me = {
     username: typeof username === 'string' ? username : null,
+    authState: typeof authState === 'string' ? authState : null,
+    version: typeof version === 'string' ? version : null,
     runtime: runtime && typeof runtime === 'object' ? runtime : null,
   };
+}
+
+async function refreshMeState(wrapperId, cardRef) {
+  const state = ensureCardState(wrapperId);
+  const endpoint = `/api/wrappers/${wrapperId}/me`;
+
+  try {
+    const { body } = await api(endpoint, { method: 'GET' });
+
+    updateBadgeByResult(state, body);
+    updateMeInfoFromResult(state, endpoint, body);
+
+    if (cardRef) {
+      applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
+      applyMeInfo(cardRef, state);
+    }
+
+    return body;
+  } catch {
+    state.badgeClass = 'status-error';
+    state.badgeText = 'me sync failed';
+
+    if (cardRef) {
+      applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
+    }
+
+    return null;
+  }
 }
 
 async function checkAuth() {
@@ -176,12 +284,14 @@ async function callAndRender(wrapperId, endpoint, options, title, cardRef) {
 
   const { body } = await api(endpoint, options);
   writeRawResponse(state, title, body);
+  writeActionFeedback(state, title, body);
   updateBadgeByResult(state, body);
   updateMeInfoFromResult(state, endpoint, body);
 
   if (cardRef) {
     applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
     applyMeInfo(cardRef, state);
+    applyActionFeedback(cardRef, state);
     cardRef.responseEl.textContent = `${state.rawTitle}\n${pretty(state.rawPayload)}`;
   }
 
@@ -203,7 +313,11 @@ function renderWrappers() {
     const urlEl = node.querySelector('.wrapper-url');
     const badgeEl = node.querySelector('.status-badge');
     const responseEl = node.querySelector('.response-box');
+    const feedbackEl = node.querySelector('.action-feedback');
+    const feedbackTextEl = node.querySelector('.action-feedback-text');
     const usernameEl = node.querySelector('.me-username');
+    const authStateEl = node.querySelector('.me-auth-state');
+    const versionEl = node.querySelector('.me-version');
     const runtimePills = Array.from(node.querySelectorAll('.runtime-pill'));
     const refreshBtn = node.querySelector('.refresh-btn');
     const meBtn = node.querySelector('.me-btn');
@@ -215,7 +329,7 @@ function renderWrappers() {
     const editCancelBtn = node.querySelector('.edit-cancel-btn');
     const editFormEl = node.querySelector('.edit-form');
 
-    const cardRef = { badgeEl, responseEl, usernameEl, runtimePills };
+    const cardRef = { badgeEl, responseEl, feedbackEl, feedbackTextEl, usernameEl, authStateEl, versionEl, runtimePills };
     const state = ensureCardState(wrapper.id);
 
     nameEl.textContent = wrapper.name;
@@ -227,6 +341,7 @@ function renderWrappers() {
 
     applyBadge(badgeEl, state.badgeClass, state.badgeText);
     applyMeInfo(cardRef, state);
+    applyActionFeedback(cardRef, state);
     if (state.rawPayload === null) {
       responseEl.textContent = state.rawTitle;
     } else {
@@ -306,6 +421,7 @@ function renderWrappers() {
         'DELETE /login',
         cardRef
       );
+      await refreshMeState(wrapper.id, cardRef);
     });
 
     loginFormEl.addEventListener('submit', async (event) => {
@@ -324,6 +440,7 @@ function renderWrappers() {
         'POST /login',
         cardRef
       );
+      await refreshMeState(wrapper.id, cardRef);
     });
 
     twofaFormEl.addEventListener('submit', async (event) => {
@@ -341,6 +458,7 @@ function renderWrappers() {
         'POST /login/2fa',
         cardRef
       );
+      await refreshMeState(wrapper.id, cardRef);
     });
 
     wrappersList.appendChild(node);

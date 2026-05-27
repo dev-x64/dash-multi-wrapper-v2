@@ -186,6 +186,15 @@ function findWrapperOr404(wrappers, id, res) {
   return wrapper;
 }
 
+function looksLikeHtmlDocument(text) {
+  if (typeof text !== 'string') {
+    return false;
+  }
+
+  const sample = text.trim().slice(0, 200).toLowerCase();
+  return sample.startsWith('<!doctype html') || sample.startsWith('<html');
+}
+
 async function callWrapperJson(wrapper, endpoint, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -241,6 +250,21 @@ async function callWrapperJson(wrapper, endpoint, options = {}) {
           wrapperUrl: url,
         };
       }
+    }
+
+    if (looksLikeHtmlDocument(body)) {
+      return {
+        ok: false,
+        status: 502,
+        body: {
+          error: 'non_json_response',
+          message: 'Wrapper returned HTML payload inside JSON response',
+          upstreamStatus: response.status,
+          upstreamContentType: contentType || null,
+          snippet: null,
+        },
+        wrapperUrl: url,
+      };
     }
 
     return {

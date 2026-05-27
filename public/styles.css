@@ -283,6 +283,20 @@ button.danger:hover {
   word-break: break-all;
 }
 
+.me-auth-state {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2a4a69;
+  text-transform: lowercase;
+}
+
+.me-version {
+  font-size: 13px;
+  font-weight: 700;
+  color: #314b63;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 .runtime-pills {
   display: flex;
   flex-wrap: wrap;
@@ -339,6 +353,62 @@ button.danger:hover {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   gap: 8px;
+}
+
+.action-feedback {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #dbe6ef;
+  border-radius: 12px;
+  background: #f8fbfe;
+}
+
+.action-feedback-label {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.action-feedback-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.action-feedback-idle .action-feedback-text {
+  color: #496279;
+}
+
+.action-feedback-success {
+  border-color: #addcb9;
+  background: #edf9f1;
+}
+
+.action-feedback-success .action-feedback-text {
+  color: #176638;
+}
+
+.action-feedback-warn {
+  border-color: #f0ccaa;
+  background: #fff6ed;
+}
+
+.action-feedback-warn .action-feedback-text {
+  color: #8f4f1c;
+}
+
+.action-feedback-error {
+  border-color: #f0b9be;
+  background: #fff1f3;
+}
+
+.action-feedback-error .action-feedback-text {
+  color: #9f1f2e;
 }
 
 .raw-response summary {
