@@ -40,6 +40,11 @@ body {
   gap: 20px;
 }
 
+#appView {
+  display: grid;
+  gap: 14px;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);

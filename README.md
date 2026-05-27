@@ -50,3 +50,5 @@ Open: `http://127.0.0.1:3000`
    - `DELETE /login` (clear auth)
 
 Wrapper list is stored in `data/wrappers.json`.
+
+Public list endpoint: `GET /apis.json` (always generated from current `data/wrappers.json`).

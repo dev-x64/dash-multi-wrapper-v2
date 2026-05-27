@@ -256,6 +256,22 @@ app.get('/auth/me', requireDashboardAuth, (req, res) => {
   return res.json({ ok: true, exp: req.auth.exp });
 });
 
+app.get('/apis.json', async (_req, res) => {
+  const wrappers = await readWrappers();
+
+  res.set('cache-control', 'no-store');
+  return res.json({
+    updatedAt: new Date().toISOString(),
+    wrappers: wrappers.map((wrapper) => ({
+      id: wrapper.id,
+      name: wrapper.name,
+      baseUrl: wrapper.baseUrl,
+      createdAt: wrapper.createdAt,
+      updatedAt: wrapper.updatedAt || null,
+    })),
+  });
+});
+
 app.use('/api', requireDashboardAuth);
 
 app.get('/api/wrappers', async (_req, res) => {
