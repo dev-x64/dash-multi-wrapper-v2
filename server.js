@@ -195,6 +195,38 @@ function looksLikeHtmlDocument(text) {
   return sample.startsWith('<!doctype html') || sample.startsWith('<html');
 }
 
+function extractWrapperMePayload(result) {
+  const root = result?.body && typeof result.body === 'object' ? result.body : null;
+  const nested = root?.body && typeof root.body === 'object' ? root.body : null;
+
+  if (root?.auth || root?.runtime || typeof root?.version === 'string') {
+    return root;
+  }
+
+  if (nested?.auth || nested?.runtime || typeof nested?.version === 'string') {
+    return nested;
+  }
+
+  return null;
+}
+
+function buildWrapperStatus(payload) {
+  const authState = payload?.auth?.state;
+  const runtime = payload?.runtime;
+
+  const allRuntimeReady =
+    runtime?.playback_ready === true &&
+    runtime?.loader_ok === true &&
+    runtime?.initialized === true &&
+    runtime?.apple_init_enabled === true;
+
+  if (allRuntimeReady && authState === 'authenticated') {
+    return 'ok';
+  }
+
+  return 'not_ok';
+}
+
 async function callWrapperJson(wrapper, endpoint, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -317,15 +349,21 @@ app.get('/apis.json', async (_req, res) => {
   const wrappers = await readWrappers();
 
   res.set('cache-control', 'no-store');
+  const apis = await Promise.all(
+    wrappers.map(async (wrapper) => {
+      const meResult = await callWrapperJson(wrapper, '/me', { method: 'GET' });
+      const payload = extractWrapperMePayload(meResult);
+
+      return {
+        url: wrapper.baseUrl,
+        version: typeof payload?.version === 'string' ? payload.version.trim() || null : null,
+        status: meResult?.status === 200 && payload ? buildWrapperStatus(payload) : 'error',
+      };
+    })
+  );
+
   return res.json({
-    updatedAt: new Date().toISOString(),
-    wrappers: wrappers.map((wrapper) => ({
-      id: wrapper.id,
-      name: wrapper.name,
-      baseUrl: wrapper.baseUrl,
-      createdAt: wrapper.createdAt,
-      updatedAt: wrapper.updatedAt || null,
-    })),
+    wrappers: apis,
   });
 });
 
