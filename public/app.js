@@ -208,15 +208,28 @@ function updateMeInfoFromResult(state, endpoint, result) {
     return;
   }
 
-  const username = result.body.auth?.username ?? result.body.auth?.apple_id ?? null;
-  const authState = result.body.auth?.state ?? null;
-  const version = result.body.version ?? null;
-  const runtime = result.body.runtime ?? null;
+  const root = result.body && typeof result.body === 'object' ? result.body : null;
+  const nested = root?.body && typeof root.body === 'object' ? root.body : null;
+  const payload =
+    root?.auth || root?.runtime || typeof root?.version === 'string'
+      ? root
+      : nested?.auth || nested?.runtime || typeof nested?.version === 'string'
+        ? nested
+        : null;
+
+  if (!payload) {
+    return;
+  }
+
+  const username = payload.auth?.username ?? payload.auth?.apple_id ?? null;
+  const authState = payload.auth?.state ?? null;
+  const version = payload.version ?? null;
+  const runtime = payload.runtime ?? null;
 
   state.me = {
     username: typeof username === 'string' ? username : null,
     authState: typeof authState === 'string' ? authState : null,
-    version: typeof version === 'string' ? version : null,
+    version: typeof version === 'string' ? version.trim() || null : null,
     runtime: runtime && typeof runtime === 'object' ? runtime : null,
   };
 }

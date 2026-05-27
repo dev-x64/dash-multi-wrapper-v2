@@ -248,8 +248,22 @@ button.danger:hover {
 
 .quick-actions {
   display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.quick-actions-main,
+.quick-actions-manage {
+  display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.quick-actions-manage {
+  padding-left: 12px;
+  border-left: 1px solid #dbe6ef;
 }
 
 .me-info {
@@ -466,5 +480,10 @@ button.danger:hover {
 
   .tiles-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quick-actions-manage {
+    padding-left: 0;
+    border-left: 0;
   }
 }
