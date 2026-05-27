@@ -2,6 +2,10 @@
 
 A simple dashboard for managing multiple wrapper APIs (https://github.com/glomatico/wrapper-v2).
 
+<img width="1525" height="907" alt="Screenshot_3" src="https://github.com/user-attachments/assets/9672fb7d-d14e-4fe0-b370-341238e67b3a" />
+
+
+
 Supported actions per wrapper:
 - `GET /me`
 - `GET /health` (automatically called for all cards on page load)
