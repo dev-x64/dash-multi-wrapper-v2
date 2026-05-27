@@ -16,8 +16,16 @@ const AUTH_SECRET = process.env.AUTH_SECRET || 'change-me-in-env';
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'dash_auth';
 const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 3000);
+const APIS_REFRESH_INTERVAL_MS = Number(process.env.APIS_REFRESH_INTERVAL_MS || 5 * 60 * 1000);
+const APIS_CLIENT_MAX_AGE_SEC = Number(process.env.APIS_CLIENT_MAX_AGE_SEC || 30);
 
 const WRAPPERS_PATH = path.join(process.cwd(), 'data', 'wrappers.json');
+const apisCache = {
+  updatedAt: null,
+  wrappers: [],
+  lastError: null,
+};
+let apisRefreshPromise = null;
 
 const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -227,6 +235,51 @@ function buildWrapperStatus(payload) {
   return 'not_ok';
 }
 
+async function buildApisSnapshot() {
+  const wrappers = await readWrappers();
+
+  return Promise.all(
+    wrappers.map(async (wrapper) => {
+      const meResult = await callWrapperJson(wrapper, '/me', { method: 'GET' });
+      const payload = extractWrapperMePayload(meResult);
+
+      return {
+        url: wrapper.baseUrl,
+        version: typeof payload?.version === 'string' ? payload.version.trim() || null : null,
+        status: meResult?.status === 200 && payload ? buildWrapperStatus(payload) : 'error',
+      };
+    })
+  );
+}
+
+async function refreshApisCache() {
+  if (apisRefreshPromise) {
+    return apisRefreshPromise;
+  }
+
+  apisRefreshPromise = (async () => {
+    try {
+      const wrappers = await buildApisSnapshot();
+      apisCache.wrappers = wrappers;
+      apisCache.updatedAt = new Date().toISOString();
+      apisCache.lastError = null;
+    } catch (error) {
+      apisCache.lastError = {
+        message: error?.message || 'apis_refresh_failed',
+        at: new Date().toISOString(),
+      };
+    } finally {
+      apisRefreshPromise = null;
+    }
+  })();
+
+  return apisRefreshPromise;
+}
+
+function scheduleApisRefresh() {
+  void refreshApisCache();
+}
+
 async function callWrapperJson(wrapper, endpoint, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -346,24 +399,14 @@ app.get('/auth/me', requireDashboardAuth, (req, res) => {
 });
 
 app.get('/apis.json', async (_req, res) => {
-  const wrappers = await readWrappers();
+  if (!apisCache.updatedAt) {
+    await refreshApisCache();
+  }
 
-  res.set('cache-control', 'no-store');
-  const apis = await Promise.all(
-    wrappers.map(async (wrapper) => {
-      const meResult = await callWrapperJson(wrapper, '/me', { method: 'GET' });
-      const payload = extractWrapperMePayload(meResult);
-
-      return {
-        url: wrapper.baseUrl,
-        version: typeof payload?.version === 'string' ? payload.version.trim() || null : null,
-        status: meResult?.status === 200 && payload ? buildWrapperStatus(payload) : 'error',
-      };
-    })
-  );
-
+  res.set('cache-control', `public, max-age=${APIS_CLIENT_MAX_AGE_SEC}, stale-while-revalidate=30`);
   return res.json({
-    wrappers: apis,
+    updatedAt: apisCache.updatedAt,
+    wrappers: apisCache.wrappers,
   });
 });
 
@@ -397,6 +440,7 @@ app.post('/api/wrappers', async (req, res) => {
 
   wrappers.push(wrapper);
   await writeWrappers(wrappers);
+  scheduleApisRefresh();
 
   return res.status(201).json({ wrapper });
 });
@@ -428,6 +472,7 @@ app.put('/api/wrappers/:id', async (req, res) => {
   };
 
   await writeWrappers(wrappers);
+  scheduleApisRefresh();
   return res.json({ wrapper: wrappers[index] });
 });
 
@@ -440,6 +485,7 @@ app.delete('/api/wrappers/:id', async (req, res) => {
   }
 
   await writeWrappers(next);
+  scheduleApisRefresh();
   return res.json({ ok: true });
 });
 
@@ -529,6 +575,14 @@ app.get(/.*/, (_req, res) => {
 
 async function start() {
   await ensureWrappersFile();
+  scheduleApisRefresh();
+
+  const refreshTimer = setInterval(() => {
+    scheduleApisRefresh();
+  }, APIS_REFRESH_INTERVAL_MS);
+  if (typeof refreshTimer.unref === 'function') {
+    refreshTimer.unref();
+  }
 
   app.listen(PORT, HOST, () => {
     console.log(`Wrapper dashboard running on http://${HOST}:${PORT}`);
