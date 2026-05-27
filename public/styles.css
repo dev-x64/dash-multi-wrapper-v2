@@ -329,6 +329,13 @@ button.danger:hover {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+.me-storefront {
+  font-size: 13px;
+  font-weight: 700;
+  color: #314b63;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 .runtime-pills {
   display: flex;
   flex-wrap: wrap;

@@ -9,6 +9,164 @@ const wrappersList = document.getElementById('wrappersList');
 const wrapperTemplate = document.getElementById('wrapperCardTemplate');
 const refreshAllBtn = document.getElementById('refreshAllBtn');
 
+const APPLE_STOREFRONT_BY_ID = {
+  143441: 'United States',
+  143442: 'France',
+  143443: 'Germany',
+  143444: 'United Kingdom',
+  143445: 'Austria',
+  143446: 'Belgium',
+  143447: 'Finland',
+  143448: 'Greece',
+  143449: 'Ireland',
+  143450: 'Italy',
+  143451: 'Luxembourg',
+  143452: 'Netherlands',
+  143453: 'Portugal',
+  143454: 'Spain',
+  143455: 'Canada',
+  143456: 'Sweden',
+  143457: 'Norway',
+  143458: 'Denmark',
+  143459: 'Switzerland',
+  143460: 'Australia',
+  143461: 'New Zealand',
+  143462: 'Japan',
+  143463: 'Hong Kong',
+  143464: 'Singapore',
+  143465: 'China',
+  143466: 'Republic of Korea',
+  143467: 'India',
+  143468: 'Mexico',
+  143469: 'Russia',
+  143470: 'Taiwan',
+  143471: 'Vietnam',
+  143472: 'South Africa',
+  143473: 'Malaysia',
+  143474: 'Philippines',
+  143475: 'Thailand',
+  143476: 'Indonesia',
+  143477: 'Pakistan',
+  143478: 'Poland',
+  143479: 'Saudi Arabia',
+  143480: 'Turkey',
+  143481: 'United Arab Emirates',
+  143482: 'Hungary',
+  143483: 'Chile',
+  143484: 'Nepal',
+  143485: 'Panama',
+  143486: 'Sri Lanka',
+  143487: 'Romania',
+  143489: 'Czech Republic',
+  143491: 'Israel',
+  143492: 'Ukraine',
+  143493: 'Kuwait',
+  143494: 'Croatia',
+  143495: 'Costa Rica',
+  143496: 'Slovakia',
+  143497: 'Lebanon',
+  143498: 'Qatar',
+  143499: 'Slovenia',
+  143501: 'Colombia',
+  143502: 'Venezuela',
+  143503: 'Brazil',
+  143504: 'Guatemala',
+  143505: 'Argentina',
+  143506: 'El Salvador',
+  143507: 'Peru',
+  143508: 'Dominican Republic',
+  143509: 'Ecuador',
+  143510: 'Honduras',
+  143511: 'Jamaica',
+  143512: 'Nicaragua',
+  143513: 'Paraguay',
+  143514: 'Uruguay',
+  143515: 'Macau',
+  143516: 'Egypt',
+  143517: 'Kazakhstan',
+  143518: 'Estonia',
+  143519: 'Latvia',
+  143520: 'Lithuania',
+  143521: 'Malta',
+  143523: 'Moldova',
+  143524: 'Armenia',
+  143525: 'Botswana',
+  143526: 'Bulgaria',
+  143528: 'Jordan',
+  143529: 'Kenya',
+  143530: 'Macedonia',
+  143531: 'Madagascar',
+  143532: 'Mali',
+  143533: 'Mauritius',
+  143534: 'Niger',
+  143535: 'Senegal',
+  143536: 'Tunisia',
+  143537: 'Uganda',
+  143538: 'Anguilla',
+  143539: 'Bahamas',
+  143540: 'Antigua and Barbuda',
+  143541: 'Barbados',
+  143542: 'Bermuda',
+  143543: 'British Virgin Islands',
+  143544: 'Cayman Islands',
+  143545: 'Dominica',
+  143546: 'Grenada',
+  143547: 'Montserrat',
+  143548: 'St. Kitts and Nevis',
+  143549: 'St. Lucia',
+  143550: 'St. Vincent and The Grenadines',
+  143551: 'Trinidad and Tobago',
+  143552: 'Turks and Caicos',
+  143553: 'Guyana',
+  143554: 'Suriname',
+  143555: 'Belize',
+  143556: 'Bolivia',
+  143557: 'Cyprus',
+  143558: 'Iceland',
+  143559: 'Bahrain',
+  143560: 'Brunei Darussalam',
+  143561: 'Nigeria',
+  143562: 'Oman',
+  143563: 'Algeria',
+  143564: 'Angola',
+  143565: 'Belarus',
+  143566: 'Uzbekistan',
+  143568: 'Azerbaijan',
+  143571: 'Yemen',
+  143572: 'Tanzania',
+  143573: 'Ghana',
+  143575: 'Albania',
+  143576: 'Benin',
+  143577: 'Bhutan',
+  143578: 'Burkina Faso',
+  143579: 'Cambodia',
+  143580: 'Cape Verde',
+  143581: 'Chad',
+  143582: 'Republic of the Congo',
+  143583: 'Fiji',
+  143584: 'Gambia',
+  143585: 'Guinea-Bissau',
+  143586: 'Kyrgyzstan',
+  143587: "Lao People's Democratic Republic",
+  143588: 'Liberia',
+  143589: 'Malawi',
+  143590: 'Mauritania',
+  143591: 'Federated States of Micronesia',
+  143592: 'Mongolia',
+  143593: 'Mozambique',
+  143594: 'Namibia',
+  143595: 'Palau',
+  143597: 'Papua New Guinea',
+  143598: 'Sao Tome and Principe',
+  143599: 'Seychelles',
+  143600: 'Sierra Leone',
+  143601: 'Solomon Islands',
+  143602: 'Swaziland',
+  143603: 'Tajikistan',
+  143604: 'Turkmenistan',
+  143605: 'Zimbabwe',
+};
+
 let wrappers = [];
 const cardState = new Map();
 
@@ -51,6 +209,7 @@ function ensureCardState(wrapperId) {
         username: null,
         authState: null,
         version: null,
+        storefront: null,
         runtime: null,
       },
     });
@@ -182,6 +341,26 @@ function normalizeRuntimeValue(value) {
   return { text: '-', className: 'is-unknown' };
 }
 
+function formatStorefront(value) {
+  if (value === null || value === undefined) {
+    return '-';
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return '-';
+  }
+
+  const idMatch = raw.match(/^\d+/);
+  if (!idMatch) {
+    return raw;
+  }
+
+  const id = idMatch[0];
+  const country = APPLE_STOREFRONT_BY_ID[id];
+  return country ? `${raw} (${country})` : raw;
+}
+
 function applyMeInfo(cardRef, state) {
   const usernameText = state.me.username ? state.me.username.trim() : '';
   cardRef.usernameEl.textContent = usernameText || 'Unknown';
@@ -194,6 +373,7 @@ function applyMeInfo(cardRef, state) {
     cardRef.authStateEl.classList.add('state-not-authenticated');
   }
   cardRef.versionEl.textContent = state.me.version || '-';
+  cardRef.storefrontEl.textContent = formatStorefront(state.me.storefront);
 
   cardRef.runtimePills.forEach((pill) => {
     const key = pill.dataset.runtimeKey;
@@ -230,6 +410,7 @@ function updateMeInfoFromResult(state, endpoint, result) {
 
   const username = payload.auth?.username ?? payload.auth?.apple_id ?? null;
   const authState = payload.auth?.state ?? null;
+  const storefront = payload.auth?.storefront ?? null;
   const version = payload.version ?? null;
   const runtime = payload.runtime ?? null;
 
@@ -237,6 +418,7 @@ function updateMeInfoFromResult(state, endpoint, result) {
     username: typeof username === 'string' ? username : null,
     authState: typeof authState === 'string' ? authState : null,
     version: typeof version === 'string' ? version.trim() || null : null,
+    storefront: storefront === null || storefront === undefined ? null : String(storefront).trim() || null,
     runtime: runtime && typeof runtime === 'object' ? runtime : null,
   };
 }
@@ -338,6 +520,7 @@ function renderWrappers() {
     const usernameEl = node.querySelector('.me-username');
     const authStateEl = node.querySelector('.me-auth-state');
     const versionEl = node.querySelector('.me-version');
+    const storefrontEl = node.querySelector('.me-storefront');
     const runtimePills = Array.from(node.querySelectorAll('.runtime-pill'));
     const refreshBtn = node.querySelector('.refresh-btn');
     const meBtn = node.querySelector('.me-btn');
@@ -349,7 +532,17 @@ function renderWrappers() {
     const editCancelBtn = node.querySelector('.edit-cancel-btn');
     const editFormEl = node.querySelector('.edit-form');
 
-    const cardRef = { badgeEl, responseEl, feedbackEl, feedbackTextEl, usernameEl, authStateEl, versionEl, runtimePills };
+    const cardRef = {
+      badgeEl,
+      responseEl,
+      feedbackEl,
+      feedbackTextEl,
+      usernameEl,
+      authStateEl,
+      versionEl,
+      storefrontEl,
+      runtimePills,
+    };
     const state = ensureCardState(wrapper.id);
 
     nameEl.textContent = wrapper.name;
