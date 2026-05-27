@@ -8,6 +8,7 @@ const addWrapperError = document.getElementById('addWrapperError');
 const wrappersList = document.getElementById('wrappersList');
 const wrapperTemplate = document.getElementById('wrapperCardTemplate');
 const refreshAllBtn = document.getElementById('refreshAllBtn');
+const APPLE_STOREFRONT_MAP_SOURCE_URL = 'https://music.apple.com/includes/js-cdn/musickit/v3/amp/musickit.js';
 
 const APPLE_STOREFRONT_BY_ID = {
   143441: 'United States',
@@ -166,6 +167,9 @@ const APPLE_STOREFRONT_BY_ID = {
   143604: 'Turkmenistan',
   143605: 'Zimbabwe',
 };
+let storefrontNameById = { ...APPLE_STOREFRONT_BY_ID };
+let storefrontMapLoadPromise = null;
+let storefrontMapLoaded = false;
 
 let wrappers = [];
 const cardState = new Map();
@@ -341,7 +345,63 @@ function normalizeRuntimeValue(value) {
   return { text: '-', className: 'is-unknown' };
 }
 
+function parseStorefrontIdsFromMusicKitSource(source) {
+  if (typeof source !== 'string' || !source) {
+    return null;
+  }
+
+  const matches = source.matchAll(/\b([A-Z]{3}):"(143\d{3})"\b/g);
+  const ids = new Set();
+
+  for (const match of matches) {
+    const id = match?.[2];
+    if (id) {
+      ids.add(id);
+    }
+  }
+
+  return ids.size ? Array.from(ids) : null;
+}
+
+async function ensureStorefrontMapLoaded() {
+  if (storefrontMapLoaded) {
+    return;
+  }
+
+  if (!storefrontMapLoadPromise) {
+    storefrontMapLoadPromise = fetch(APPLE_STOREFRONT_MAP_SOURCE_URL)
+      .then((response) => (response.ok ? response.text() : ''))
+      .then((source) => {
+        const ids = parseStorefrontIdsFromMusicKitSource(source);
+        if (!ids) {
+          return;
+        }
+
+        const next = {};
+        ids.forEach((id) => {
+          if (APPLE_STOREFRONT_BY_ID[id]) {
+            next[id] = APPLE_STOREFRONT_BY_ID[id];
+          }
+        });
+
+        if (Object.keys(next).length) {
+          storefrontNameById = next;
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        storefrontMapLoaded = true;
+      });
+  }
+
+  return storefrontMapLoadPromise;
+}
+
 function formatStorefront(value) {
+  if (!storefrontMapLoaded) {
+    void ensureStorefrontMapLoaded();
+  }
+
   if (value === null || value === undefined) {
     return '-';
   }
@@ -357,7 +417,7 @@ function formatStorefront(value) {
   }
 
   const id = idMatch[0];
-  const country = APPLE_STOREFRONT_BY_ID[id];
+  const country = storefrontNameById[id];
   return country ? `${raw} (${country})` : raw;
 }
 
@@ -410,7 +470,7 @@ function updateMeInfoFromResult(state, endpoint, result) {
 
   const username = payload.auth?.username ?? payload.auth?.apple_id ?? null;
   const authState = payload.auth?.state ?? null;
-  const storefront = payload.auth?.storefront ?? null;
+  const storefront = payload.auth?.storefront ?? payload.auth?.storefont ?? null;
   const version = payload.version ?? null;
   const runtime = payload.runtime ?? null;
 
