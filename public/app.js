@@ -795,7 +795,7 @@ function renderWrappers() {
       event.preventDefault();
       const form = new FormData(loginFormEl);
       const username = String(form.get('username') || '').trim();
-      const password = String(form.get('password') || '');
+      const password = String(form.get('wrapper_secret') || '');
 
       await callAndRender(
         wrapper.id,
