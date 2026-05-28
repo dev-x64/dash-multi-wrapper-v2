@@ -469,11 +469,7 @@ function applyMeInfo(cardRef, state) {
 
 function updateMeInfoFromResult(state, endpoint, result) {
   if (!endpoint.endsWith('/me')) {
-    return;
-  }
-
-  if (result?.status !== 200 || !result?.body) {
-    return;
+    return false;
   }
 
   const root = result.body && typeof result.body === 'object' ? result.body : null;
@@ -486,7 +482,7 @@ function updateMeInfoFromResult(state, endpoint, result) {
         : null;
 
   if (!payload) {
-    return;
+    return false;
   }
 
   const username = payload.auth?.username ?? payload.auth?.apple_id ?? null;
@@ -502,6 +498,7 @@ function updateMeInfoFromResult(state, endpoint, result) {
     storefront: storefront === null || storefront === undefined ? null : String(storefront).trim() || null,
     runtime: runtime && typeof runtime === 'object' ? runtime : null,
   };
+  return true;
 }
 
 async function refreshMeState(wrapperId, cardRef) {
@@ -512,21 +509,39 @@ async function refreshMeState(wrapperId, cardRef) {
     markRequestPending(wrapperId, cardRef, 'GET /me');
     const { body } = await api(endpoint, { method: 'GET' });
 
+    writeRawResponse(state, 'GET /me', body);
+    writeActionFeedback(state, 'GET /me', body);
     updateBadgeByResult(state, body);
-    updateMeInfoFromResult(state, endpoint, body);
+    const meUpdated = updateMeInfoFromResult(state, endpoint, body);
+    if (!meUpdated && Number(body?.status) >= 400) {
+      state.me = {
+        username: null,
+        authState: 'not_authenticated',
+        version: null,
+        storefront: null,
+        runtime: null,
+      };
+    }
 
     if (cardRef) {
       applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
       applyMeInfo(cardRef, state);
+      applyActionFeedback(cardRef, state);
+      cardRef.responseEl.textContent = `${state.rawTitle}\n${pretty(state.rawPayload)}`;
     }
 
     return body;
   } catch {
     state.badgeClass = 'status-error';
     state.badgeText = 'me sync failed';
+    state.actionFeedback = {
+      tone: 'error',
+      text: 'GET /me failed',
+    };
 
     if (cardRef) {
       applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
+      applyActionFeedback(cardRef, state);
     }
 
     return null;
