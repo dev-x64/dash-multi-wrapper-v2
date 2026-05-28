@@ -178,6 +178,10 @@ function pretty(data) {
   return JSON.stringify(data, null, 2);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
@@ -222,7 +226,7 @@ function ensureCardState(wrapperId) {
 }
 
 function applyBadge(badgeEl, badgeClass, badgeText) {
-  badgeEl.classList.remove('status-idle', 'status-ok', 'status-warn', 'status-error');
+  badgeEl.classList.remove('status-idle', 'status-ok', 'status-warn', 'status-error', 'status-pending');
   badgeEl.classList.add(badgeClass);
   badgeEl.textContent = badgeText;
 }
@@ -260,6 +264,21 @@ function updateBadgeByResult(state, result) {
 
   state.badgeClass = 'status-idle';
   state.badgeText = 'idle';
+}
+
+function markRequestPending(wrapperId, cardRef, title) {
+  const state = ensureCardState(wrapperId);
+  state.badgeClass = 'status-pending';
+  state.badgeText = 'sending';
+  state.actionFeedback = {
+    tone: 'pending',
+    text: `${title} ...`,
+  };
+
+  if (cardRef) {
+    applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
+    applyActionFeedback(cardRef, state);
+  }
 }
 
 function writeRawResponse(state, title, payload) {
@@ -320,7 +339,8 @@ function applyActionFeedback(cardRef, state) {
     'action-feedback-idle',
     'action-feedback-success',
     'action-feedback-warn',
-    'action-feedback-error'
+    'action-feedback-error',
+    'action-feedback-pending'
   );
 
   const toneClassMap = {
@@ -328,6 +348,7 @@ function applyActionFeedback(cardRef, state) {
     success: 'action-feedback-success',
     warn: 'action-feedback-warn',
     error: 'action-feedback-error',
+    pending: 'action-feedback-pending',
   };
 
   const toneClass = toneClassMap[state.actionFeedback?.tone] || 'action-feedback-idle';
@@ -488,6 +509,7 @@ async function refreshMeState(wrapperId, cardRef) {
   const endpoint = `/api/wrappers/${wrapperId}/me`;
 
   try {
+    markRequestPending(wrapperId, cardRef, 'GET /me');
     const { body } = await api(endpoint, { method: 'GET' });
 
     updateBadgeByResult(state, body);
@@ -508,6 +530,51 @@ async function refreshMeState(wrapperId, cardRef) {
     }
 
     return null;
+  }
+}
+
+async function waitBeforeMeSync(wrapperId, cardRef, delayMs = 3000) {
+  const state = ensureCardState(wrapperId);
+  const seconds = Math.ceil(delayMs / 1000);
+
+  state.badgeClass = 'status-pending';
+  state.badgeText = `sync in ${seconds}s`;
+  state.actionFeedback = {
+    tone: 'pending',
+    text: `POST /login accepted. Waiting ${seconds}s before GET /me`,
+  };
+
+  if (cardRef) {
+    applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
+    applyActionFeedback(cardRef, state);
+  }
+
+  await sleep(delayMs);
+}
+
+function finalizeLoginMeFeedback(wrapperId, cardRef, meResult) {
+  const state = ensureCardState(wrapperId);
+  const status = meResult && Number.isFinite(meResult.status) ? meResult.status : 0;
+
+  if (status === 200) {
+    state.actionFeedback = {
+      tone: 'success',
+      text: 'POST /login -> GET /me synced',
+    };
+  } else if (status) {
+    state.actionFeedback = {
+      tone: status >= 400 ? 'error' : 'warn',
+      text: `POST /login -> GET /me (${status})`,
+    };
+  } else {
+    state.actionFeedback = {
+      tone: 'error',
+      text: 'POST /login -> GET /me failed',
+    };
+  }
+
+  if (cardRef) {
+    applyActionFeedback(cardRef, state);
   }
 }
 
@@ -539,6 +606,7 @@ async function loadWrappers() {
 async function callAndRender(wrapperId, endpoint, options, title, cardRef) {
   const state = ensureCardState(wrapperId);
 
+  markRequestPending(wrapperId, cardRef, title);
   writeRawResponse(state, `${title} ...`, {});
   if (cardRef) {
     cardRef.responseEl.textContent = `${state.rawTitle}\n${pretty(state.rawPayload)}`;
@@ -636,9 +704,18 @@ function renderWrappers() {
     };
 
     removeBtn.addEventListener('click', async () => {
+      markRequestPending(wrapper.id, cardRef, 'DELETE wrapper');
       const { response, body } = await api(`/api/wrappers/${wrapper.id}`, { method: 'DELETE' });
       if (!response.ok) {
         writeRawResponse(state, 'DELETE wrapper error', body);
+        state.badgeClass = 'status-error';
+        state.badgeText = `error ${response.status || 0}`;
+        state.actionFeedback = {
+          tone: 'error',
+          text: `DELETE wrapper (${response.status || 'n/a'})`,
+        };
+        applyActionFeedback(cardRef, state);
+        applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
         responseEl.textContent = `${state.rawTitle}\n${pretty(state.rawPayload)}`;
         return;
       }
@@ -663,6 +740,7 @@ function renderWrappers() {
       const name = String(editFormEl.elements.name.value || '').trim();
       const baseUrl = String(editFormEl.elements.baseUrl.value || '').trim();
 
+      markRequestPending(wrapper.id, cardRef, 'PUT /wrappers/:id');
       const { response, body } = await api(`/api/wrappers/${wrapper.id}`, {
         method: 'PUT',
         body: JSON.stringify({ name, baseUrl }),
@@ -670,6 +748,14 @@ function renderWrappers() {
 
       if (!response.ok) {
         writeRawResponse(state, 'PUT /wrappers/:id error', body);
+        state.badgeClass = 'status-error';
+        state.badgeText = `error ${response.status || 0}`;
+        state.actionFeedback = {
+          tone: 'error',
+          text: `PUT /wrappers/:id (${response.status || 'n/a'})`,
+        };
+        applyActionFeedback(cardRef, state);
+        applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
         responseEl.textContent = `${state.rawTitle}\n${pretty(state.rawPayload)}`;
         return;
       }
@@ -683,6 +769,14 @@ function renderWrappers() {
 
       editFormEl.classList.add('hidden');
       writeRawResponse(state, 'PUT /wrappers/:id', body);
+      state.badgeClass = 'status-ok';
+      state.badgeText = 'saved';
+      state.actionFeedback = {
+        tone: 'success',
+        text: `PUT /wrappers/:id (${response.status || 200})`,
+      };
+      applyBadge(cardRef.badgeEl, state.badgeClass, state.badgeText);
+      applyActionFeedback(cardRef, state);
       responseEl.textContent = `${state.rawTitle}\n${pretty(state.rawPayload)}`;
     });
 
@@ -713,7 +807,9 @@ function renderWrappers() {
         'POST /login',
         cardRef
       );
-      await refreshMeState(wrapper.id, cardRef);
+      await waitBeforeMeSync(wrapper.id, cardRef, 3000);
+      const meResult = await refreshMeState(wrapper.id, cardRef);
+      finalizeLoginMeFeedback(wrapper.id, cardRef, meResult);
     });
 
     twofaFormEl.addEventListener('submit', async (event) => {

@@ -246,6 +246,23 @@ button.danger:hover {
   background: var(--error);
 }
 
+.status-pending {
+  background: linear-gradient(135deg, #5d93c8 0%, #3e79b3 100%);
+  animation: badge-pulse 1.05s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(62, 121, 179, 0.22);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(62, 121, 179, 0);
+  }
+}
+
 .quick-actions {
   display: flex;
   gap: 16px;
@@ -448,6 +465,40 @@ button.danger:hover {
 
 .action-feedback-error .action-feedback-text {
   color: #9f1f2e;
+}
+
+.action-feedback-pending {
+  border-color: #b8d2ea;
+  background: #edf5fd;
+}
+
+.action-feedback-pending .action-feedback-text {
+  color: #1f5e95;
+}
+
+.action-feedback-pending .action-feedback-text::after {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  margin-left: 6px;
+  text-align: left;
+  animation: waiting-dots 1s steps(4, end) infinite;
+}
+
+@keyframes waiting-dots {
+  0% {
+    content: '';
+  }
+  25% {
+    content: '.';
+  }
+  50% {
+    content: '..';
+  }
+  75%,
+  100% {
+    content: '...';
+  }
 }
 
 .raw-response summary {
