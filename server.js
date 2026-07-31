@@ -235,19 +235,40 @@ function buildWrapperStatus(payload) {
   return 'not_ok';
 }
 
+function buildWrapperSnapshot(wrapper, meResult) {
+  const payload = extractWrapperMePayload(meResult);
+
+  return {
+    url: wrapper.baseUrl,
+    version: typeof payload?.version === 'string' ? payload.version.trim() || null : null,
+    status: meResult?.status === 200 && payload ? buildWrapperStatus(payload) : 'error',
+  };
+}
+
+function updateCachedWrapperSnapshot(configuredWrappers, wrapper, meResult) {
+  const configuredUrls = new Set(configuredWrappers.map((item) => item.baseUrl));
+  const snapshots = apisCache.wrappers.filter((item) => configuredUrls.has(item.url));
+  const index = snapshots.findIndex((item) => item.url === wrapper.baseUrl);
+  const snapshot = buildWrapperSnapshot(wrapper, meResult);
+
+  if (index === -1) {
+    snapshots.push(snapshot);
+  } else {
+    snapshots[index] = snapshot;
+  }
+
+  apisCache.wrappers = snapshots;
+  apisCache.updatedAt = new Date().toISOString();
+  apisCache.lastError = null;
+}
+
 async function buildApisSnapshot() {
   const wrappers = await readWrappers();
 
   return Promise.all(
     wrappers.map(async (wrapper) => {
       const meResult = await callWrapperJson(wrapper, '/me', { method: 'GET' });
-      const payload = extractWrapperMePayload(meResult);
-
-      return {
-        url: wrapper.baseUrl,
-        version: typeof payload?.version === 'string' ? payload.version.trim() || null : null,
-        status: meResult?.status === 200 && payload ? buildWrapperStatus(payload) : 'error',
-      };
+      return buildWrapperSnapshot(wrapper, meResult);
     })
   );
 }
@@ -497,6 +518,7 @@ app.get('/api/wrappers/:id/me', async (req, res) => {
   }
 
   const result = await callWrapperJson(wrapper, '/me', { method: 'GET' });
+  updateCachedWrapperSnapshot(wrappers, wrapper, result);
   return res.status(result.status || 502).json(result);
 });
 
